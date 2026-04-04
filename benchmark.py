@@ -438,61 +438,6 @@ def bench_rust_nightly(name, func_body):
     return parse_number(out) if rc == 0 else None
 
 
-# ─────────────────────────── Benchmark: D ───────────────────────
-
-_d_bin_cache = {}
-
-
-def bench_d(name, func_body):
-    compiler = find_cmd("ldc2", "dmd")
-    if not compiler:
-        return None
-
-    if name not in _d_bin_cache:
-        BUILD_DIR.mkdir(exist_ok=True)
-        src = (
-            "import std.algorithm : sort, partition, bringToFront;\n"
-            "import std.datetime.stopwatch : StopWatch, AutoStart;\n"
-            "import std.stdio : writeln;\n\n"
-            "ubyte[] maximumOddBinary(ubyte[] s) {\n"
-            f"    {func_body}\n"
-            "    return s;\n"
-            "}\n\n"
-            "void main() {\n"
-            f"    ubyte[] fullInput;\n"
-            f"    foreach (_; 0 .. {INPUT_LEN // 2}) fullInput ~= cast(ubyte[])(\"01\".dup);\n"
-            f"    enum n = {N_ITERS};\n"
-            "    ubyte[] result;\n"
-            "    auto sw = StopWatch(AutoStart.yes);\n"
-            "    foreach (_; 0 .. n)\n"
-            "        result = maximumOddBinary(fullInput.dup);\n"
-            "    sw.stop();\n"
-            '    writeln(sw.peek.total!"nsecs" / 1.0e9 / n);\n'
-            "}\n"
-        )
-        src_path = BUILD_DIR / f"bench_{name}.d"
-        bin_path = BUILD_DIR / f"bench_{name}"
-        src_path.write_text(src)
-        if "ldc2" in compiler:
-            _, cerr, crc = run_cmd(
-                [compiler, "-O2", f"-of={bin_path}", str(src_path)]
-            )
-        else:
-            _, cerr, crc = run_cmd(
-                [compiler, "-O", f"-of={bin_path}", str(src_path)]
-            )
-        if crc != 0:
-            _d_bin_cache[name] = None
-            return None
-        _d_bin_cache[name] = str(bin_path)
-
-    bin_path = _d_bin_cache[name]
-    if bin_path is None:
-        return None
-    out, _, rc = run_cmd([bin_path])
-    return parse_number(out) if rc == 0 else None
-
-
 # ─────────────────────────── Benchmark: Nim ─────────────────────
 
 _nim_bin_cache = {}
@@ -862,7 +807,7 @@ def generate_html(all_results, output_path):
   td {{ padding: 8px 12px; border-bottom: 1px solid #21262d; }}
   .lang-cell {{ display: flex; align-items: center; gap: 8px; }}
   .lang-cell img {{ width: 20px; height: 20px; }}
-  .code-cell {{ font-family: 'BQN386 Unicode', 'DejaVu Sans Mono', monospace; }}
+  .code-cell {{ font-family: 'BQN386 Unicode', 'DejaVu Sans Mono', monospace; white-space: pre-wrap; }}
   .time-val {{ font-weight: 600; }}
   .runs {{ color: #8b949e; font-size: 0.8rem; font-family: monospace; }}
   .script-cell {{
@@ -979,7 +924,24 @@ function buildBarChart() {{
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: {{
         legend: {{ display: false }},
-        tooltip: {{ callbacks: {{ label: ctx => fmtTime(ctx.raw) }} }}
+        tooltip: {{
+          displayColors: false,
+          titleFont: {{ family: "'BQN386 Unicode','DejaVu Sans Mono',monospace", size: 18 }},
+          bodyFont: {{ family: "'BQN386 Unicode','DejaVu Sans Mono',monospace", size: 16 }},
+          padding: 16,
+          maxWidth: 600,
+          callbacks: {{
+            title: ctx => {{
+              const d = barChart._visibleData[ctx[0].dataIndex];
+              return d ? `${{d.name}}  ${{d.code}}` : '';
+            }},
+            beforeBody: ctx => {{
+              const d = barChart._visibleData[ctx[0].dataIndex];
+              return d && d.source_code ? '\\n' + d.source_code : '';
+            }},
+            label: ctx => '\\n' + fmtTime(ctx.raw),
+          }}
+        }}
       }},
       scales: {{
         x: {{
@@ -1008,6 +970,7 @@ function updateBarChart() {{
   }});
   const values = vis.map(d => d.by_size[currentSize].median_s * 1e6);
   const colors = vis.map(d => d.color);
+  barChart._visibleData = vis;
   barChart.data.labels = labels;
   barChart.data.datasets[0].data = values;
   barChart.data.datasets[0].backgroundColor = colors;
@@ -1126,6 +1089,7 @@ SOLUTIONS = [
     dict(
         name="BQN", code="1\u233d\u2228", bytes=3,
         color="#2b7067", logo="bqn",
+        source_code="1\u233d\u2228",
         bench=bench_bqn,
         script=(
             '  \u2022Out \u2022Fmt N(1\u233d\u2228)\u2022_timed L\u294a"01"\n'
@@ -1134,8 +1098,9 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="BQN", code="Mob (count)", bytes=None,
-        color="#3d9080", logo="bqn",
+        name="BQN", code="count+construct", bytes=None,
+        color="#2b7067", logo="bqn",
+        source_code="{n\u2190+\u00b4'1'=\U0001d569\n (\"1\"/\u02dcn-1)\u223e(\"0\"/\u02dc(\u2260\U0001d569)-n)\u223e'1'}",
         bench=bench_bqn_count,
         script=(
             '  {n\u2190+\u00b4\'1\'=\U0001d569 \u22c4 ("1"/\u02dcn-1)\u223e("0"/\u02dc(\u2260\U0001d569)-n)\u223e\'1\'}\n'
@@ -1143,8 +1108,9 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="BQN", code="Mob (tacit)", bytes=None,
-        color="#1a5c50", logo="bqn",
+        name="BQN", code="tacit count", bytes=None,
+        color="#2b7067", logo="bqn",
+        source_code="\"101\"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4'1'\u22b8=))",
         bench=bench_bqn_tacit,
         script=(
             '  "101"/\u02dc(\u2260(1\u223e\u02dc(1-\u02dc\u22a2)\u223e-)(+\u00b4\'1\'\u22b8=))\n'
@@ -1154,6 +1120,7 @@ SOLUTIONS = [
     dict(
         name="Kap", code="1\u233d\u2228", bytes=3,
         color="#55a630", logo="kap",
+        source_code="1\u233d\u2228",
         bench=bench_kap,
         script=(
             '  input \u2190 L\u2374"01"                          \u2190 not timed\n'
@@ -1163,6 +1130,7 @@ SOLUTIONS = [
     dict(
         name="Uiua", code="\u21bb1\u21cc\u2346", bytes=4,
         color="#ea1999", logo="uiua",
+        source_code="\u21bb1\u21cc\u2346",
         bench=bench_uiua,
         script=(
             '  S \u2190 \u21afL "01"              \u2190 not timed\n'
@@ -1172,8 +1140,9 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="Uiua", code="Mob (count)", bytes=None,
-        color="#c41080", logo="uiua",
+        name="Uiua", code="count+construct", bytes=None,
+        color="#ea1999", logo="uiua",
+        source_code="\u02dc\u25bd\"101\"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1",
         bench=bench_uiua_count,
         script=(
             '  \u02dc\u25bd"101"\u02dc\u22821\u2282\u2283-\u2081-\u2283/+\u29fb=@1\n'
@@ -1183,6 +1152,7 @@ SOLUTIONS = [
     dict(
         name="TinyAPL", code="1\u2218\u2296\u2218\u22b5", bytes=5,
         color="#9b59b6", logo="tinyapl",
+        source_code="1\u2218\u2296\u2218\u22b5",
         bench=lambda: bench_tinyapl("1\u2218\u2296\u2218\u22b5"),
         script=(
             '  \u2395\u2190(1\u2218\u2296\u2218\u22b5) \u2395_Measure L\u2374\'01\'\n'
@@ -1191,19 +1161,22 @@ SOLUTIONS = [
     ),
     dict(
         name="TinyAPL", code="1\u00ab\u2296\u00bb\u22b5", bytes=5,
-        color="#8e44ad", logo="tinyapl",
+        color="#9b59b6", logo="tinyapl",
+        source_code="1\u00ab\u2296\u00bb\u22b5",
         bench=lambda: bench_tinyapl("1\u00ab\u2296\u00bb\u22b5"),
         script='  \u2395\u2190(1\u00ab\u2296\u00bb\u22b5) \u2395_Measure L\u2374\'01\'',
     ),
     dict(
         name="TinyAPL", code="\u2985" "1\u2296\u22b5" "\u2986", bytes=5,
-        color="#7d3c98", logo="tinyapl",
+        color="#9b59b6", logo="tinyapl",
+        source_code="\u29851\u2296\u22b5\u2986",
         bench=lambda: bench_tinyapl("\u2985" "1\u2296\u22b5" "\u2986"),
         script='  \u2395\u2190(\u29851\u2296\u22b5\u2986) \u2395_Measure L\u2374\'01\'',
     ),
     dict(
         name="J", code="1|.\\:~", bytes=6,
         color="#2ad4ff", logo="j",
+        source_code="1|.\\:~",
         bench=bench_j,
         script=(
             "  input =: L $ '01'                    \u2190 not timed\n"
@@ -1212,8 +1185,9 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="J", code="Mob (count)", bytes=None,
-        color="#1a9ad4", logo="j",
+        name="J", code="tacit count", bytes=None,
+        color="#2ad4ff", logo="j",
+        source_code="'101'#~1,~#(<:@],-)\n ([:+/'1'=[)",
         bench=bench_j_count,
         script=(
             "  bench =: 3 : '''101''#~1,~#(<:@],-)([:+/''1''=y)'\n"
@@ -1223,6 +1197,7 @@ SOLUTIONS = [
     dict(
         name="APL", code="1\u233d\u2282\u2364\u2352\u235b\u2337", bytes=7,
         color="#24a148", logo="apl",
+        source_code="1\u233d\u2282\u2364\u2352\u235b\u2337",
         bench=bench_apl,
         script=(
             '  input\u2190L\u2374\'01\'                         \u2190 not timed\n'
@@ -1232,8 +1207,9 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="APL", code="Mob (count)", bytes=None,
-        color="#1d8a3e", logo="apl",
+        name="APL", code="tacit count", bytes=None,
+        color="#24a148", logo="apl",
+        source_code="'101'/\u23681,\u2368\u2262\n ((1-\u2368\u22a2),-)(+/'1'\u2218=)",
         bench=bench_apl_count,
         script=(
             "  Mob\u2190'101'/\u23681,\u2368\u2262((1-\u2368\u22a2),-)( +/'1'\u2218=)\n"
@@ -1243,7 +1219,7 @@ SOLUTIONS = [
     dict(
         name="C++", code="partition+rotate", bytes=None,
         color="#659ad2", logo="cpp_logo",
-        source_code="partition(s, …);\nrotate(s, next(s.begin()));",
+        source_code="auto f(string s) -> string {\n  partition(s, [](auto c){ return c=='1'; });\n  rotate(s, next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "partition_rotate",
             "std::ranges::partition(s, [](auto c) { return c == '1'; });\n"
@@ -1259,8 +1235,8 @@ SOLUTIONS = [
     ),
     dict(
         name="C++", code="sort+rotate", bytes=None,
-        color="#4a7fb5", logo="cpp_logo",
-        source_code="sort(s, greater{});\nrotate(s, next(s.begin()));",
+        color="#659ad2", logo="cpp_logo",
+        source_code="auto f(string s) -> string {\n  sort(s, greater{});\n  rotate(s, next(s.begin()));\n  return s;\n}",
         bench=lambda: bench_cpp(
             "sort_rotate",
             "std::ranges::sort(s, std::greater{});\n"
@@ -1276,8 +1252,8 @@ SOLUTIONS = [
     ),
     dict(
         name="C++", code="count+construct", bytes=None,
-        color="#3a6a9f", logo="cpp_logo",
-        source_code="auto n = ranges::count(s, '1');\nreturn string(n-1,'1')\n  + string(s.size()-n,'0') + '1';",
+        color="#659ad2", logo="cpp_logo",
+        source_code="auto f(string s) -> string {\n  auto n = ranges::count(s, '1');\n  return string(n-1,'1')\n    + string(s.size()-n,'0') + '1';\n}",
         bench=lambda: bench_cpp(
             "count_construct",
             "auto n = std::ranges::count(s, '1');\n"
@@ -1291,8 +1267,8 @@ SOLUTIONS = [
     ),
     dict(
         name="Rust", code="sort+rotate", bytes=None,
-        color="#dea584", logo="rust",
-        source_code="s.sort_unstable_by(|a,b| b.cmp(a));\ns.rotate_left(1);",
+        color="#dea584", logo="rust_logo_darkmode",
+        source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  s.sort_unstable_by(|a,b| b.cmp(a));\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust(
             "rust_sort",
             "s.sort_unstable_by(|a, b| b.cmp(a));\n"
@@ -1307,8 +1283,8 @@ SOLUTIONS = [
     ),
     dict(
         name="Rust", code="partition+rotate", bytes=None,
-        color="#c47a5a", logo="rust",
-        source_code="s.iter_mut().partition_in_place(\n  |c| *c == b'1');\ns.rotate_left(1);",
+        color="#dea584", logo="rust_logo_darkmode",
+        source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  s.iter_mut()\n    .partition_in_place(|c| *c == b'1');\n  s.rotate_left(1);\n  s\n}",
         bench=lambda: bench_rust_nightly(
             "rust_partition",
             "s.iter_mut().partition_in_place(|c| *c == b'1');\n"
@@ -1323,8 +1299,8 @@ SOLUTIONS = [
     ),
     dict(
         name="Rust", code="count+construct", bytes=None,
-        color="#b08060", logo="rust",
-        source_code="let n = s.iter().filter(\n  |&&c| c==b'1').count();\n// build (n-1) '1's + zeros + '1'",
+        color="#dea584", logo="rust_logo_darkmode",
+        source_code="fn f(mut s: Vec<u8>) -> Vec<u8> {\n  let n = s.iter()\n    .filter(|&&c| c==b'1').count();\n  let len = s.len();\n  s.clear();\n  s.extend(repeat(b'1').take(n-1));\n  s.extend(repeat(b'0').take(len-n));\n  s.push(b'1');\n  s\n}",
         bench=lambda: bench_rust(
             "rust_count",
             "let n = s.iter().filter(|&&c| c == b'1').count();\n"
@@ -1342,39 +1318,9 @@ SOLUTIONS = [
         ),
     ),
     dict(
-        name="D", code="sort+rotate", bytes=None,
-        color="#b03030", logo="d",
-        source_code='sort!"a > b"(s);\nbringToFront(s[0..1], s[1..$]);',
-        bench=lambda: bench_d(
-            "d_sort",
-            'sort!"a > b"(s);\n'
-            "    bringToFront(s[0 .. 1], s[1 .. $]);",
-        ),
-        script=(
-            '  auto sw = StopWatch(AutoStart.yes);\n'
-            '  foreach (_; 0 .. N)\n'
-            '      result = maximumOddBinary(fullInput.dup);  // dup + sort + rotate\n'
-            '  sw.stop();'
-        ),
-    ),
-    dict(
-        name="D", code="partition+rotate", bytes=None,
-        color="#e04040", logo="d",
-        source_code="partition!(c => c == '1')(s);\nbringToFront(s[0..1], s[1..$]);",
-        bench=lambda: bench_d(
-            "d_partition",
-            "partition!(c => c == '1')(s);\n"
-            "    bringToFront(s[0 .. 1], s[1 .. $]);",
-        ),
-        script=(
-            '  foreach (_; 0 .. N)\n'
-            '      result = maximumOddBinary(fullInput.dup);  // dup + partition + rotate'
-        ),
-    ),
-    dict(
         name="Nim", code="sort+rotate", bytes=None,
-        color="#ffe953", logo="nim",
-        source_code="sort(s, order = Descending)\nrotateLeft(s, 1)",
+        color="#ffe953", logo="nim_logo",
+        source_code="proc f(s: var string) =\n  sort(s, order = Descending)\n  rotateLeft(s, 1)",
         bench=lambda: bench_nim(
             "nim_sort",
             "sort(s, order = Descending)\n"
@@ -1389,8 +1335,8 @@ SOLUTIONS = [
     ),
     dict(
         name="Julia", code="sort+circshift", bytes=None,
-        color="#9558b2", logo="julia",
-        source_code="v = sort(s, rev=true)\ncircshift(v, -1)",
+        color="#9558b2", logo="julia_logo_darkmode",
+        source_code="function f(s)\n  v = sort(s, rev=true)\n  circshift(v, -1)\nend",
         bench=bench_julia,
         script=(
             '  maximum_odd_binary(input)  # warmup\n'
@@ -1401,8 +1347,8 @@ SOLUTIONS = [
     ),
     dict(
         name="Python", code="sort+rotate", bytes=None,
-        color="#3776ab", logo="python",
-        source_code="s = list(s)\ns.sort(reverse=True)\ns.append(s.pop(0))\nreturn ''.join(s)",
+        color="#3776ab", logo="python_logo",
+        source_code="def f(s):\n  s = list(s)\n  s.sort(reverse=True)\n  s.append(s.pop(0))\n  return ''.join(s)",
         bench=bench_python_sort,
         script=(
             '  start = time.perf_counter()\n'
@@ -1432,7 +1378,6 @@ def run_benchmarks_for_size(input_len, log_scripts=False, lang_filter=None):
     _cpp_bin_cache.clear()
     _rust_bin_cache.clear()
     _rust_nightly_bin_cache.clear()
-    _d_bin_cache.clear()
     _nim_bin_cache.clear()
 
     results = []
@@ -1527,7 +1472,25 @@ def main():
         "--list", action="store_true",
         help="List all available solution names and exit.",
     )
+    parser.add_argument(
+        "--html-only", action="store_true",
+        help="Rebuild HTML from cached results without running benchmarks.",
+    )
     args = parser.parse_args()
+
+    if args.html_only:
+        cached = _load_cache()
+        if not cached:
+            print("No cached results found. Run benchmarks first.")
+            sys.exit(1)
+        print("Rebuilding outputs from cache...")
+        default_size = 1_000
+        results = cached.get(default_size) or next(iter(cached.values()))
+        generate_chart(results, ROOT / "benchmark_all.png")
+        results_filtered = [r for r in results if r["name"] not in ("TinyAPL", "Kap")]
+        generate_chart(results_filtered, ROOT / "benchmark_no_tinyapl.png")
+        generate_html(cached, ROOT / "benchmark.html")
+        return
 
     if args.list:
         seen = set()
@@ -1580,8 +1543,8 @@ def main():
 
     print("\nGenerating outputs...")
     generate_chart(results, ROOT / "benchmark_all.png")
-    results_no_tinyapl = [r for r in results if r["name"] != "TinyAPL"]
-    generate_chart(results_no_tinyapl, ROOT / "benchmark_no_tinyapl.png")
+    results_filtered = [r for r in results if r["name"] not in ("TinyAPL", "Kap")]
+    generate_chart(results_filtered, ROOT / "benchmark_no_tinyapl.png")
     generate_html(all_results, ROOT / "benchmark.html")
 
 
