@@ -104,6 +104,16 @@ def bench_bqn_count():
     return parse_number(out) if rc == 0 else None
 
 
+def bench_bqn_sort_alt():
+    interp = find_cmd("cbqn", "bqn")
+    if not interp:
+        return None
+    fn = '"01"\u228f\u02dc1\u233d\u00b7\u2228\'1\'\u22b8='
+    script = f'\u2022Out \u2022Fmt {N_ITERS}({fn})\u2022_timed {INPUT_LEN}\u294a"01"'
+    out, _, rc = run_cmd([interp, "-e", script])
+    return parse_number(out) if rc == 0 else None
+
+
 def bench_bqn_tacit():
     interp = find_cmd("cbqn", "bqn")
     if not interp:
@@ -304,6 +314,7 @@ def bench_cpp(name, func_body):
         src = (
             "#include <algorithm>\n"
             "#include <chrono>\n"
+            "#include <cstring>\n"
             "#include <iostream>\n"
             "#include <string>\n\n"
             "auto maximum_odd_binary(std::string s) -> std::string {\n"
@@ -1231,7 +1242,7 @@ def generate_html(all_results, output_path):
 <div class="approach-filters">
   <span class="label">Filter:</span>
   <button class="approach-filter active" style="--ab:#58a6ff" onclick="toggleApproachFilter('sort', this)">Sort + Rotate</button>
-  <button class="approach-filter active" style="--ab:#3fb950" onclick="toggleApproachFilter('partition', this)">Partition + Rotate</button>
+  <button class="approach-filter active" style="--ab:#3fb950" onclick="toggleApproachFilter('partition', this)">Partition</button>
   <button class="approach-filter active" style="--ab:#f85149" onclick="toggleApproachFilter('count', this)">Count + Construct</button>
 </div>
 
@@ -1359,7 +1370,7 @@ const BENCH = {json.dumps(json_payload, ensure_ascii=False)};
 const SIZES = BENCH.sizes;
 const SOLS  = BENCH.solutions;
 const enabled = new Set(SOLS.map((_, i) => i));
-const enabledApproaches = new Set(['sort', 'partition', 'count', 'other']);
+const enabledApproaches = new Set(['sort', 'partition', 'count']);
 let currentSize = SIZES.includes(1000) ? '1000' : String(SIZES[0]);
 let barChart, lineChart;
 
@@ -1848,6 +1859,19 @@ SOLUTIONS = [
     ),
     dict(
         name="BQN",
+        code="sort+rotate alt",
+        bytes=None,
+        color="#2b7067",
+        logo="bqn",
+        source_code='"01"\u228f\u02dc1\u233d\u00b7\u2228\'1\'\u22b8=',
+        bench=bench_bqn_sort_alt,
+        script=(
+            '  \u2022Out \u2022Fmt N("01"\u228f\u02dc1\u233d\u00b7\u2228\'1\'\u22b8=)\u2022_timed L\u294a"01"\n'
+            "  sort+rotate on boolean mask, then index back into \"01\""
+        ),
+    ),
+    dict(
+        name="BQN",
         code="count+construct",
         bytes=None,
         color="#2b7067",
@@ -2055,6 +2079,89 @@ SOLUTIONS = [
         ),
         script=(
             "  // O(n) count + construct, no sort\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);"
+        ),
+    ),
+    dict(
+        name="C++",
+        code="partition+partition_point",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
+        source_code="auto mob(std::string s) -> std::string {\n  std::ranges::partition(s, [](auto c) { return c == '1'; });\n  auto it = std::ranges::partition_point(s, [](auto c) { return c == '1'; });\n  std::iter_swap(std::prev(it), std::prev(s.end()));\n  return s;\n}",
+        bench=lambda: bench_cpp(
+            "partition_point",
+            "std::ranges::partition(s, [](auto c) { return c == '1'; });\n"
+            "  auto it = std::ranges::partition_point(s, [](auto c) { return c == '1'; });\n"
+            "  std::iter_swap(std::prev(it), std::prev(s.end()));",
+        ),
+        script=(
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);  // partition + partition_point + swap"
+        ),
+    ),
+    dict(
+        name="C++",
+        code="partition",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
+        source_code="auto mob(std::string s) -> std::string {\n  auto r = std::ranges::partition(s, [](auto c) { return c == '1'; });\n  std::iter_swap(std::prev(r.begin()), std::prev(s.end()));\n  return s;\n}",
+        bench=lambda: bench_cpp(
+            "partition_only",
+            "auto r = std::ranges::partition(s, [](auto c) { return c == '1'; });\n"
+            "  std::iter_swap(std::prev(r.begin()), std::prev(s.end()));",
+        ),
+        script=(
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);  // partition + swap"
+        ),
+    ),
+    dict(
+        name="C++",
+        code="count+construct 2",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
+        source_code="auto mob(std::string s) -> std::string {\n  auto n = std::ranges::count(s, '1');\n  std::string out;\n  out.reserve(s.length());\n  out.resize(n-1, '1');\n  out.resize(s.length() - 1, '0');\n  out.push_back('1');\n  return out;\n}",
+        bench=lambda: bench_cpp(
+            "count_construct2",
+            "auto n = std::ranges::count(s, '1');\n"
+            "  std::string out;\n"
+            "  out.reserve(s.length());\n"
+            "  out.resize(n - 1, '1');\n"
+            "  out.resize(s.length() - 1, '0');\n"
+            "  out.push_back('1');\n"
+            "  s = std::move(out);",
+        ),
+        script=(
+            "  // O(n) count + reserve/resize construct\n"
+            "  for (int i = 0; i < N; ++i)\n"
+            "    result = maximum_odd_binary(input);"
+        ),
+    ),
+    dict(
+        name="C++",
+        code="count+construct 3",
+        bytes=None,
+        color="#659ad2",
+        logo="cpp_logo",
+        source_code="auto mob(std::string s) -> std::string {\n  auto n = std::ranges::count(s, '1');\n  std::string out;\n  out.resize_and_overwrite(s.length(),\n    [n](char* buf, size_t size) noexcept {\n      std::memset(buf, '1', n - 1);\n      std::memset(buf + n - 1, '0', size - n);\n      buf[size - 1] = '1';\n      return size;\n    });\n  return out;\n}",
+        bench=lambda: bench_cpp(
+            "count_construct3",
+            "auto n = std::ranges::count(s, '1');\n"
+            "  std::string out;\n"
+            "  out.resize_and_overwrite(s.length(), [n](char* buf, size_t size) noexcept {\n"
+            "    std::memset(buf, '1', n - 1);\n"
+            "    std::memset(buf + n - 1, '0', size - n);\n"
+            "    buf[size - 1] = '1';\n"
+            "    return size;\n"
+            "  });\n"
+            "  s = std::move(out);",
+        ),
+        script=(
+            "  // O(n) count + resize_and_overwrite + memset\n"
             "  for (int i = 0; i < N; ++i)\n"
             "    result = maximum_odd_binary(input);"
         ),
