@@ -1730,6 +1730,13 @@ function getTokens(slideEl) {{
 function magicMove(oldSlide, newSlide, duration) {{
   const oldTokens = getTokens(oldSlide);
 
+  const oldLogo = oldSlide.querySelector('.pres-logo');
+  let oldLogoRect, oldLogoSrc;
+  if (oldLogo) {{
+    oldLogoRect = oldLogo.getBoundingClientRect();
+    oldLogoSrc = oldLogo.src;
+  }}
+
   const overlay = document.getElementById('magic-move-overlay');
   overlay.innerHTML = '';
   overlay.style.display = 'block';
@@ -1737,6 +1744,27 @@ function magicMove(oldSlide, newSlide, duration) {{
   overlay.style.transition = '';
 
   slideEls.forEach((el, i) => el.classList.toggle('active', el === newSlide));
+
+  if (oldLogoSrc) {{
+    const newLogo = newSlide.querySelector('.pres-logo');
+    const newLogoRect = newLogo ? newLogo.getBoundingClientRect() : oldLogoRect;
+
+    const oldImg = document.createElement('img');
+    oldImg.src = oldLogoSrc;
+    oldImg.style.cssText = `position:absolute;left:${{oldLogoRect.left}}px;top:${{oldLogoRect.top}}px;width:${{oldLogoRect.width}}px;height:${{oldLogoRect.height}}px;object-fit:contain;z-index:2;transition:opacity ${{duration}}ms ease;`;
+    overlay.appendChild(oldImg);
+
+    if (newLogo) {{
+      const newImg = document.createElement('img');
+      newImg.src = newLogo.src;
+      newImg.style.cssText = `position:absolute;left:${{newLogoRect.left}}px;top:${{newLogoRect.top}}px;width:${{newLogoRect.width}}px;height:${{newLogoRect.height}}px;object-fit:contain;z-index:1;opacity:0;transition:opacity ${{duration}}ms ease;`;
+      overlay.appendChild(newImg);
+      requestAnimationFrame(() => {{
+        oldImg.style.opacity = '0';
+        newImg.style.opacity = '1';
+      }});
+    }}
+  }}
 
   const newTokens = getTokens(newSlide);
 
@@ -1810,7 +1838,7 @@ function magicMove(oldSlide, newSlide, duration) {{
   }}, duration + 80);
 }}
 
-const MM_DURATION = 500;
+const MM_DURATION = 900;
 
 function showSlide(n) {{
   const newIndex = Math.max(0, Math.min(n, totalSlides - 1));
