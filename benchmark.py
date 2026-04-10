@@ -343,7 +343,7 @@ def bench_cpp(name, func_body):
 
         for std_flag in ["-std=c++23", "-std=c++20"]:
             _, cerr, crc = run_cmd(
-                [compiler, std_flag, "-O2", "-o", str(bin_path), str(src_path)]
+                [compiler, std_flag, "-O3", "-o", str(bin_path), str(src_path)]
             )
             if crc == 0:
                 break
@@ -460,7 +460,7 @@ def bench_rust(name, func_body):
         src_path = BUILD_DIR / f"bench_{name}.rs"
         bin_path = BUILD_DIR / f"bench_{name}"
         src_path.write_text(src)
-        _, cerr, crc = run_cmd([compiler, "-O", "-o", str(bin_path), str(src_path)])
+        _, cerr, crc = run_cmd([compiler, "-C", "opt-level=3", "-o", str(bin_path), str(src_path)])
         if crc != 0:
             _rust_bin_cache[name] = None
             return None
@@ -514,7 +514,7 @@ def bench_rust_nightly(name, func_body):
                 "run",
                 "nightly",
                 "rustc",
-                "-O",
+                "-C", "opt-level=3",
                 "-o",
                 str(bin_path),
                 str(src_path),
