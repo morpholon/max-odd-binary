@@ -286,11 +286,12 @@ def bench_kap(fn_expr="1\u233d\u2228", setup=""):
     kap_path = Path.home() / "Downloads/kap/gui2/bin/kap-jvm"
     if not kap_path.exists():
         return None
+    kap_n = max(N_ITERS, N_ITERS * 200 * 1000 // max(INPUT_LEN, 1))
     setup_part = f"{setup} \u25ca " if setup else ""
     expr = (
         f'input \u2190 {INPUT_LEN}\u2374"01" \u25ca '
         f"{setup_part}"
-        f"time:measureTime {{ {{ {fn_expr} input }} \u00a8 \u2373{N_ITERS} }}"
+        f"time:measureTime {{ {{ {fn_expr} input }} \u00a8 \u2373{kap_n} }}"
     )
     out, err, rc = run_cmd([str(kap_path), "-n", "-E", expr], timeout=30)
     if rc != 0:
@@ -299,7 +300,7 @@ def bench_kap(fn_expr="1\u233d\u2228", setup=""):
         if "Total time:" in line:
             m = re.search(r"Total time:\s*([\d.]+)", line)
             if m:
-                return float(m.group(1)) / N_ITERS
+                return float(m.group(1)) / kap_n
     return None
 
 
