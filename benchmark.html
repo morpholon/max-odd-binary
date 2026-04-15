@@ -553,7 +553,7 @@ function buildControls() {
     langs.find(l => l.name === d.name).indices.push(i);
   });
   langs.forEach(lang => {
-    const startOn = !HIDDEN_BY_DEFAULT.has(lang.name);
+    const startOn = lang.indices.some(i => enabled.has(i));
     if (startOn) enabledLangs.add(lang.name);
     else lang.indices.forEach(i => enabled.delete(i));
     const chip = document.createElement('button');
